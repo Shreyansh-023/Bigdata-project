@@ -9,3 +9,6 @@ coverage/
 apps/api/uploads/
 apps/api/data/
 apps/worker/data/
+**/apps/api/data/
+**/apps/api/uploads/
+**/apps/api/apps/
