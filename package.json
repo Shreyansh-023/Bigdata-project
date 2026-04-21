@@ -1,0 +1,19 @@
+{
+  "name": "streambridge",
+  "private": true,
+  "version": "1.0.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run -ws build",
+    "dev": "npm run -ws dev",
+    "lint": "npm run -ws lint",
+    "typecheck": "npm run -ws typecheck",
+    "start": "npm run -ws start"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  }
+}

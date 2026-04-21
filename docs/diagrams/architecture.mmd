@@ -1,0 +1,12 @@
+flowchart LR
+  UI[React Web Dashboard] --> API[Node API]
+  API --> KMeta[(file-transfer-metadata)]
+  API --> KChunks[(file-transfer-chunks)]
+  API --> KEvents[(file-transfer-events)]
+  API --> KMetrics[(file-transfer-metrics)]
+  KChunks --> Worker[Reassembler Worker]
+  Worker --> Out[Reconstructed File]
+  Worker --> API
+  KEvents --> Analytics[Analytics Service]
+  KMetrics --> Analytics
+  Analytics --> UI

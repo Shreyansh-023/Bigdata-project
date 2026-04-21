@@ -1,0 +1,30 @@
+Human-only setup steps for this project
+
+1. Install system software:
+	- Java 21 LTS (or Java 17 if Java 21 is unavailable)
+	- Node.js 22 LTS
+	- Docker Desktop
+
+2. Start Docker Desktop manually and wait until it is fully running.
+
+3. Approve any OS firewall prompts for Docker, Node.js, Java, or terminal tools.
+
+4. If required by your machine policy, restart the computer after Java or Docker installation.
+
+5. Confirm antivirus/firewall is not blocking these local ports:
+	- 9092 (Kafka)
+	- 4000 (API)
+	- 4100 (Analytics)
+	- 5173 (Frontend)
+
+6. From project root, run:
+	- npm install
+	- docker compose -f infra/docker/docker-compose.yml up -d kafka kafka-init
+
+7. Start services in separate terminals:
+	- npm run --workspace @streambridge/api dev
+	- npm run --workspace @streambridge/worker dev
+	- npm run --workspace @streambridge/analytics dev
+	- npm run --workspace @streambridge/web dev
+
+8. Open http://localhost:5173 and run the upload demo.

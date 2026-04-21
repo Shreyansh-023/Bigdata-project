@@ -1,0 +1,43 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg-1: #f8fafc;
+  --bg-2: #e0f2fe;
+  --text-1: #0f172a;
+  --text-2: #334155;
+  --card: rgba(255, 255, 255, 0.74);
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  color: var(--text-1);
+  font-family: "Space Grotesk", sans-serif;
+  background:
+    radial-gradient(circle at 12% 22%, rgba(13, 148, 136, 0.2), transparent 34%),
+    radial-gradient(circle at 78% 18%, rgba(217, 70, 15, 0.18), transparent 28%),
+    linear-gradient(155deg, var(--bg-1), var(--bg-2));
+}
+
+.glass {
+  background: var(--card);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.55);
+}
+
+@keyframes float-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.float-in {
+  animation: float-in 420ms ease-out both;
+}
