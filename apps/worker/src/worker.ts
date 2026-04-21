@@ -79,7 +79,11 @@ const reconstructChunk = async (chunk: ChunkMessage): Promise<void> => {
     bytesTransferred: Math.min(count * session.chunkSize, session.fileSize)
   });
 
-  if (count >= chunk.totalChunks) {
+  const actualFileSize = fs.existsSync(outPath) ? fs.statSync(outPath).size : 0;
+  const sizeComplete = actualFileSize >= session.fileSize;
+  const bucketComplete = count >= chunk.totalChunks;
+
+  if (status.status !== "completed" && (bucketComplete || sizeComplete)) {
     const finalChecksum = await sha256File(outPath);
     const checksumVerified = finalChecksum === chunk.fileChecksum;
 
@@ -90,6 +94,7 @@ const reconstructChunk = async (chunk: ChunkMessage): Promise<void> => {
         ? undefined
         : `Final checksum mismatch expected=${chunk.fileChecksum} actual=${finalChecksum}`,
       receivedChunks: chunk.totalChunks,
+      bytesTransferred: session.fileSize,
       sentChunks: status.sentChunks
     });
   }
