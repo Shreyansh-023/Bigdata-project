@@ -1,4 +1,4 @@
-# PRD: Real-Time Fault-Tolerant File Streaming System using Big Data Technologies
+# Real-Time Fault-Tolerant File Streaming System using Big Data Technologies
 
 ## 1) Product name
 **Official topic name:** Real-Time Fault-Tolerant File Streaming System using Big Data Technologies  
