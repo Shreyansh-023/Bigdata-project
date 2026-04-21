@@ -16,7 +16,7 @@ export const apiBase = API_BASE;
 export const createTransfer = async (payload: {
   fileName: string;
   fileSize: number;
-  chunkSize: number;
+  chunkSize?: number;
 }) => {
   const res = await fetch(`${API_BASE}/api/transfers`, {
     method: "POST",
@@ -61,6 +61,33 @@ export const getEvents = async (transferId: string): Promise<{ items: unknown[] 
     throw new Error(await res.text());
   }
   return await res.json();
+};
+
+export interface PredictorHint {
+  source: "ewma" | "ml" | "manual";
+  stabilityScore: number;
+  regime: "low" | "medium" | "high";
+  recommendedChunkSize: number;
+  featureSnapshot: {
+    throughputEwmaBytesPerSec: number;
+    throughputCv: number;
+    retryRatePerMin: number;
+    errorRatePerMin: number;
+    consumerLagSlope: number;
+    windowSeconds: number;
+  };
+  timestamp: string;
+}
+
+export const getPredictorHint = async (): Promise<PredictorHint | null> => {
+  const res = await fetch(`${API_BASE}/api/predictor/hint`);
+  if (res.status === 404) {
+    return null;
+  }
+  if (!res.ok) {
+    throw new Error(await res.text());
+  }
+  return (await res.json()) as PredictorHint;
 };
 
 export const resumeTransfer = async (transferId: string): Promise<unknown> => {

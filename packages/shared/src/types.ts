@@ -59,6 +59,38 @@ export interface TransferMetric {
   timestamp: string;
 }
 
+export type StabilityRegime = "low" | "medium" | "high";
+
+export interface ChunkSizeHint {
+  source: "ewma" | "ml" | "manual";
+  stabilityScore: number;
+  regime: StabilityRegime;
+  recommendedChunkSize: number;
+  featureSnapshot: {
+    throughputEwmaBytesPerSec: number;
+    throughputCv: number;
+    retryRatePerMin: number;
+    errorRatePerMin: number;
+    consumerLagSlope: number;
+    windowSeconds: number;
+  };
+  timestamp: string;
+}
+
+export interface TrainingWindow {
+  windowId: string;
+  features: {
+    throughputEwmaBytesPerSec: number;
+    throughputCv: number;
+    retryRatePerMin: number;
+    errorRatePerMin: number;
+    consumerLagSlope: number;
+    windowSeconds: number;
+  };
+  label: StabilityRegime;
+  recordedAt: string;
+}
+
 export interface TransferRuntimeStatus {
   transferId: string;
   status: TransferStatus;

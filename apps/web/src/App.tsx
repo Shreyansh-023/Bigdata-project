@@ -3,7 +3,9 @@ import {
   apiBase,
   createTransfer,
   getEvents,
+  getPredictorHint,
   listTransfers,
+  PredictorHint,
   resumeTransfer,
   TransferSession,
   uploadFile
@@ -49,12 +51,15 @@ const formatSpeed = (value: number): string => `${formatBytes(Math.round(value))
 export default function App() {
   const [file, setFile] = useState<File | null>(null);
   const [chunkSizeKb, setChunkSizeKb] = useState<number>(512);
+  const [autoChunkSize, setAutoChunkSize] = useState<boolean>(true);
   const [transferId, setTransferId] = useState<string>("");
   const [status, setStatus] = useState<RuntimeStatus | null>(null);
   const [events, setEvents] = useState<EventItem[]>([]);
   const [history, setHistory] = useState<Array<{ id: string; fileName: string; status: string }>>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>("");
+  const [hint, setHint] = useState<PredictorHint | null>(null);
+  const [lastUsedChunkSize, setLastUsedChunkSize] = useState<number | null>(null);
 
   const progress = useMemo(() => {
     if (!status || status.totalChunks <= 0) {
@@ -76,6 +81,26 @@ export default function App() {
 
   useEffect(() => {
     void refreshHistory();
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const poll = async (): Promise<void> => {
+      try {
+        const next = await getPredictorHint();
+        if (!cancelled) {
+          setHint(next);
+        }
+      } catch {
+        // predictor may not be up; ignore
+      }
+    };
+    void poll();
+    const timer = setInterval(() => void poll(), 5000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
   }, []);
 
   useEffect(() => {
@@ -114,10 +139,11 @@ export default function App() {
       const session = await createTransfer({
         fileName: file.name,
         fileSize: file.size,
-        chunkSize: chunkSizeKb * 1024
+        ...(autoChunkSize ? {} : { chunkSize: chunkSizeKb * 1024 })
       });
 
       setTransferId(session.transferId);
+      setLastUsedChunkSize(session.session?.chunkSize ?? null);
       await uploadFile(session.transferId, file);
       const eventResult = await getEvents(session.transferId);
       setEvents(eventResult.items as EventItem[]);
@@ -157,6 +183,9 @@ export default function App() {
         </p>
       </section>
 
+      <PredictorBanner hint={hint} />
+
+
       <div className="grid gap-6 lg:grid-cols-3">
         <section className="float-in rounded-3xl p-6 shadow-lg glass lg:col-span-1">
           <h2 className="font-display text-xl font-semibold">Upload</h2>
@@ -168,14 +197,24 @@ export default function App() {
               onChange={(e) => setFile(e.target.files?.[0] ?? null)}
             />
 
+            <label className="flex items-center gap-2 text-sm text-slate-700">
+              <input
+                type="checkbox"
+                checked={autoChunkSize}
+                onChange={(e) => setAutoChunkSize(e.target.checked)}
+              />
+              Auto chunk size (use predictor)
+            </label>
+
             <label className="block text-sm text-slate-700">Chunk size (KB)</label>
             <input
               type="number"
               min={64}
               step={64}
               value={chunkSizeKb}
+              disabled={autoChunkSize}
               onChange={(e) => setChunkSizeKb(Number(e.target.value) || 512)}
-              className="w-full rounded-xl border border-slate-200 bg-white p-2"
+              className="w-full rounded-xl border border-slate-200 bg-white p-2 disabled:bg-slate-100 disabled:text-slate-500"
             />
 
             <button
@@ -190,6 +229,11 @@ export default function App() {
           {transferId && (
             <div className="mt-4 rounded-xl border border-orange-200 bg-orange-50 p-3 font-mono text-xs">
               transferId: {transferId}
+              {lastUsedChunkSize !== null && (
+                <div className="mt-1 text-slate-700">
+                  actual chunk size used: {formatBytes(lastUsedChunkSize)}
+                </div>
+              )}
             </div>
           )}
 
@@ -282,5 +326,69 @@ function Metric({ label, value }: { label: string; value: string }) {
       <p className="text-xs uppercase tracking-wide text-slate-500">{label}</p>
       <p className="mt-1 font-display text-lg font-semibold">{value}</p>
     </article>
+  );
+}
+
+const regimeStyles: Record<PredictorHint["regime"], { badge: string; label: string }> = {
+  low: { badge: "bg-red-100 text-red-700 border-red-200", label: "LOW stability" },
+  medium: { badge: "bg-amber-100 text-amber-700 border-amber-200", label: "MEDIUM stability" },
+  high: { badge: "bg-emerald-100 text-emerald-700 border-emerald-200", label: "HIGH stability" }
+};
+
+function PredictorBanner({ hint }: { hint: PredictorHint | null }) {
+  if (!hint) {
+    return (
+      <section className="float-in mb-6 rounded-3xl p-4 shadow-lg glass">
+        <p className="text-sm text-slate-600">
+          Predictor: waiting for metric samples... (upload a file to generate telemetry)
+        </p>
+      </section>
+    );
+  }
+
+  const style = regimeStyles[hint.regime];
+  const recommended = hint.recommendedChunkSize;
+  const fmt = (value: number): string =>
+    value >= 1024 * 1024
+      ? `${(value / (1024 * 1024)).toFixed(1)} MB`
+      : `${Math.round(value / 1024)} KB`;
+
+  const features = hint.featureSnapshot;
+
+  return (
+    <section className="float-in mb-6 rounded-3xl p-4 shadow-lg glass">
+      <div className="flex flex-wrap items-center gap-3">
+        <span
+          className={`rounded-full border px-3 py-1 text-xs font-semibold ${style.badge}`}
+        >
+          {style.label}
+        </span>
+        <span className="text-sm text-slate-700">
+          Predictor ({hint.source.toUpperCase()}) recommends{" "}
+          <strong className="font-semibold">{fmt(recommended)}</strong> per chunk
+        </span>
+        <span className="text-xs text-slate-500">
+          score {hint.stabilityScore.toFixed(2)} · updated{" "}
+          {new Date(hint.timestamp).toLocaleTimeString()}
+        </span>
+      </div>
+      <div className="mt-3 grid gap-2 text-xs text-slate-600 sm:grid-cols-3 lg:grid-cols-5">
+        <span>
+          throughput EWMA: <strong>{fmt(features.throughputEwmaBytesPerSec)}/s</strong>
+        </span>
+        <span>
+          CV: <strong>{features.throughputCv.toFixed(2)}</strong>
+        </span>
+        <span>
+          retries/min: <strong>{features.retryRatePerMin.toFixed(2)}</strong>
+        </span>
+        <span>
+          errors/min: <strong>{features.errorRatePerMin.toFixed(2)}</strong>
+        </span>
+        <span>
+          lag slope: <strong>{features.consumerLagSlope.toFixed(2)}</strong>
+        </span>
+      </div>
+    </section>
   );
 }

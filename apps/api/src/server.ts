@@ -15,7 +15,7 @@ import {
   TransferSession
 } from "@streambridge/shared";
 import { config } from "./config.js";
-import { connectKafka, producer } from "./kafka.js";
+import { connectKafka, getLatestHint, producer } from "./kafka.js";
 import {
   appendLine,
   ensureDir,
@@ -107,6 +107,14 @@ app.get("/health", (_req, res) => {
   res.json({ ok: true, service: "api", timestamp: nowIso() });
 });
 
+app.get("/api/predictor/hint", (_req, res) => {
+  const hint = getLatestHint();
+  if (!hint) {
+    return res.status(404).json({ error: "no hint available yet" });
+  }
+  return res.json(hint);
+});
+
 app.get("/api/transfers", (_req, res) => {
   const items = listTransfers()
     .map((id) => readJson<TransferSession>(metadataPath(id)))
@@ -128,7 +136,14 @@ app.post("/api/transfers", async (req, res) => {
     return res.status(400).json({ error: "fileName and fileSize are required" });
   }
 
-  const size = chunkSize && chunkSize > 0 ? chunkSize : config.defaultChunkSize;
+  const hint = getLatestHint();
+  const predictorSize = hint?.recommendedChunkSize;
+  const size =
+    chunkSize && chunkSize > 0
+      ? chunkSize
+      : predictorSize && predictorSize > 0
+        ? predictorSize
+        : config.defaultChunkSize;
   const transferId = crypto
     .createHash("sha1")
     .update(`${fileName}:${fileSize}:${nowIso()}:${uuidv4()}`)

@@ -11,7 +11,10 @@ const kafka = new Kafka({
   brokers: (process.env.KAFKA_BROKERS ?? "localhost:9092").split(",")
 });
 
-const consumer = kafka.consumer({ groupId: "streambridge-analytics-v1" });
+const consumer = kafka.consumer({
+  groupId: "streambridge-analytics-v1",
+  maxBytesPerPartition: 8 * 1024 * 1024
+});
 const metricsTopic = process.env.KAFKA_METRICS_TOPIC ?? "file-transfer-metrics";
 const eventsTopic = process.env.KAFKA_EVENTS_TOPIC ?? "file-transfer-events";
 const port = Number(process.env.ANALYTICS_PORT ?? 4100);

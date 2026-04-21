@@ -18,7 +18,10 @@ const kafka = new Kafka({
   brokers: config.kafkaBrokers
 });
 
-const consumer = kafka.consumer({ groupId: config.consumerGroup });
+const consumer = kafka.consumer({
+  groupId: config.consumerGroup,
+  maxBytesPerPartition: 8 * 1024 * 1024
+});
 
 const received = new Map<string, Set<number>>();
 
