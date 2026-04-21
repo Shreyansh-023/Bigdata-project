@@ -1,9 +1,11 @@
 import fs from "node:fs";
 import { Kafka } from "kafkajs";
-import { ChunkMessage, TransferRuntimeStatus } from "@streambridge/shared";
+import { ChunkMessage, TransferRuntimeStatus, TransferSession } from "@streambridge/shared";
 import { config } from "./config.js";
 import {
+  metadataPath,
   outputPath,
+  readMetadata,
   readStatus,
   requireSession,
   statusPath,
@@ -16,7 +18,7 @@ const kafka = new Kafka({
   brokers: config.kafkaBrokers
 });
 
-const consumer = kafka.consumer({ groupId: "streambridge-reassembler-v1" });
+const consumer = kafka.consumer({ groupId: config.consumerGroup });
 
 const received = new Map<string, Set<number>>();
 
@@ -90,20 +92,60 @@ const reconstructChunk = async (chunk: ChunkMessage): Promise<void> => {
   }
 };
 
+const waitForMetadata = async (transferId: string, maxMs = 5000): Promise<void> => {
+  const start = Date.now();
+  while (!readMetadata(transferId)) {
+    if (Date.now() - start > maxMs) {
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+};
+
+const persistSessionMetadata = (session: TransferSession): void => {
+  writeJson(metadataPath(session.id), session);
+
+  if (!readStatus(session.id)) {
+    const initialStatus: TransferRuntimeStatus = {
+      transferId: session.id,
+      status: "running",
+      sentChunks: 0,
+      receivedChunks: 0,
+      totalChunks: session.totalChunks,
+      bytesTransferred: 0,
+      fileSize: session.fileSize,
+      speedBytesPerSec: 0,
+      etaSeconds: 0,
+      retryCount: 0,
+      updatedAt: nowIso()
+    };
+    writeJson(statusPath(session.id), initialStatus);
+  }
+};
+
 const run = async (): Promise<void> => {
   await consumer.connect();
-  await consumer.subscribe({ topic: config.chunksTopic, fromBeginning: true });
+  await consumer.subscribe({
+    topics: [config.metadataTopic, config.chunksTopic],
+    fromBeginning: true
+  });
 
   await consumer.run({
     autoCommit: false,
+    partitionsConsumedConcurrently: 4,
     eachMessage: async ({ topic, partition, message }) => {
       if (!message.value) {
         return;
       }
 
-      const payload = JSON.parse(message.value.toString("utf-8")) as ChunkMessage;
-
-      await reconstructChunk(payload);
+      if (topic === config.metadataTopic) {
+        const session = JSON.parse(message.value.toString("utf-8")) as TransferSession;
+        persistSessionMetadata(session);
+      } else if (topic === config.chunksTopic) {
+        const chunk = JSON.parse(message.value.toString("utf-8")) as ChunkMessage;
+        await waitForMetadata(chunk.transferId);
+        await reconstructChunk(chunk);
+      }
 
       const nextOffset = (BigInt(message.offset) + 1n).toString();
       await consumer.commitOffsets([

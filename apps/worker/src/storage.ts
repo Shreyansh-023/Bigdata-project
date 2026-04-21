@@ -35,8 +35,11 @@ export const writeJson = <T>(filePath: string, value: T): void => {
   fs.writeFileSync(filePath, JSON.stringify(value, null, 2), "utf-8");
 };
 
+export const readMetadata = (transferId: string): TransferSession | null =>
+  readJson<TransferSession>(metadataPath(transferId));
+
 export const requireSession = (transferId: string): TransferSession => {
-  const session = readJson<TransferSession>(metadataPath(transferId));
+  const session = readMetadata(transferId);
   if (!session) {
     throw new Error(`Missing metadata for transfer ${transferId}`);
   }
